@@ -1,145 +1,166 @@
-
-
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forum Stacker</title>
-    <style>*,::after,::before{margin:0;padding:0;font-size:14px;font-family:'Roboto Condensed',sans-serif;box-sizing:border-box}body{background:#afafaf}.header{background:#333;width:100%;color:#fff;height:50px}.header__body{max-width:1280px;width:100%;height:100%;margin:0 auto;display:flex;justify-content:center;align-items:center}.header__text{font-weight:700;font-size:calc(10px + 1vmin);text-transform:uppercase}.content{width:100%}.content__body{max-width:1280px;width:100%;margin:0 auto;display:flex;justify-content:center;align-items:center}.content__case{padding:25px}.stacker{text-align:center;display:flex;flex-direction:column}.stacker__punish{border:0;padding:15px;width:30vw;height:10vh;text-align:center;outline:0}.stacker__button{border:0;width:30vw;margin-bottom:30px;outline:0;padding:5px;font-weight:700}</style>
-
-    <!-- Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300&display=swap" rel="stylesheet">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="Admin Prospekt Stacker — суммирование наказаний с настраиваемыми правилами" />
+  <meta name="theme-color" content="#0d0f11" />
+  <title>ADMIN PROSPEKT · Stacker</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <header class="header">
-        <div class="header__body">
-            <span class="header__text">Stacker</span>
-        </div>
+  <div class="site-shell">
+    <header class="app-header">
+      <a class="brand" href="#stacker" aria-label="Admin Prospekt Stacker">
+        <span class="brand-main">ADMIN <b>PROSPEKT</b></span>
+        <span class="brand-sub">FORUM STACKER</span>
+      </a>
+
+      <nav class="main-nav" aria-label="Основная навигация">
+        <button class="nav-item active" type="button" data-page="stacker" aria-current="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+          Стакер
+        </button>
+        <button class="nav-item" type="button" data-page="rules">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>
+          Правила
+        </button>
+      </nav>
+
+      <div class="header-status" id="headerStatus"><span class="status-dot"></span>Готов</div>
     </header>
-    <main class="content">
-        <div class="content__body">
-            <div class="content__case stacker">
-                <input type="text"
-                        name="name_punishField" 
-                        id="id_punishField" 
-                        class="stacker__punish" 
-                        placeholder="Введите данные из столбца 'Punish List'" 
-                        value="" />
-                <button onclick="punishStack()" class="stacker__button">Выплонить</button>
-                <table class="stacker__data table" id="id_dataTable">
-                    <tr class="table__header"><b>Информация:</b></tr>
-                    <tr class="table__row">
-                        <td class="table__id" id="id_table-id-0">ID</td>
-                        <td class="table__punish" id="id_table-punish-0">Наказание</td>
-                        <td class="table__time" id="id_table-time-0">Время</td>
-                        <td class="table__name" id="id_table-name-0">Жалоба</td>
-                    </tr>
-                </table>
-                <br><br><br>
-                <table class="stacker__result table" id="id_resultTable">
-                    <tr class="table__header"><b>Результат:</b></tr>
-                </table>
-            </div>
+
+    <main>
+      <section class="page active" id="page-stacker" data-page-panel="stacker">
+        <div class="page-heading">
+          <div>
+            <h1>Суммирование наказаний</h1>
+            <p>Вставьте список наказаний. Стакер объединит записи по ID и применит активные правила.</p>
+          </div>
+          <label class="check compact"><input type="checkbox" id="strictMode" />Строгая проверка</label>
         </div>
+
+        <section class="panel quick-panel">
+          <div class="section-title">
+            <span class="section-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 10-13h-8z"/></svg>
+            </span>
+            <div><h2>Быстрые действия</h2><p>Основные действия со списком наказаний</p></div>
+          </div>
+          <div class="quick-actions">
+            <button class="control" id="loadDemo" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8Z"/><path d="M14 3v5h5M8 12h8M8 16h6"/></svg>
+              Вставить пример
+            </button>
+            <button class="control" id="clearInput" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+              Очистить
+            </button>
+            <button class="control primary" id="processBtn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 10-13h-8z"/></svg>
+              Обработать
+            </button>
+            <button class="control" id="copyResult" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+              Скопировать результат
+            </button>
+          </div>
+        </section>
+
+        <div class="workspace-grid">
+          <section class="panel workspace-panel input-panel">
+            <div class="panel-head">
+              <div><h2>Исходные данные</h2><p>Обычные строки и Markdown-таблицы поддерживаются автоматически.</p></div>
+              <button class="text-button" id="copyInput" type="button">Копировать</button>
+            </div>
+            <textarea id="input" spellcheck="false" placeholder="ID:123;PUNISH:ajail;TIME:120;NAME:admin-0001;"></textarea>
+            <div class="panel-foot"><span id="inputStats">0 строк · 0 записей</span><span>Ctrl + Enter — обработать</span></div>
+          </section>
+
+          <section class="panel workspace-panel result-panel">
+            <div class="panel-head">
+              <div><h2>Результат</h2><p id="resultSummary">Команд пока нет</p></div>
+              <span class="live-indicator" id="autoIndicator"><span class="status-dot"></span>Авто</span>
+            </div>
+            <div id="messages" class="messages" aria-live="polite"></div>
+            <div id="results" class="results empty-state">
+              <div>
+                <svg class="empty-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>
+                <strong>Здесь появятся готовые команды</strong>
+                <span>Вставьте список наказаний слева.</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="stats-strip" aria-label="Статистика обработки">
+          <div><span>Распознано</span><strong id="statRecords">0</strong></div>
+          <div><span>Игроков</span><strong id="statPlayers">0</strong></div>
+          <div><span>Объединено</span><strong id="statMerged">0</strong></div>
+          <div><span>Команд</span><strong id="statCommands">0</strong></div>
+        </section>
+      </section>
+
+      <section class="page" id="page-rules" data-page-panel="rules" hidden>
+        <div class="page-heading rules-heading">
+          <div>
+            <h1>Правила</h1>
+            <p>Меняйте стандартные условия или добавляйте свои. Настройки сохраняются только в этом браузере.</p>
+          </div>
+          <div class="row-actions">
+            <button class="control" id="exportRules" type="button">Экспорт JSON</button>
+            <label class="control file-control">Импорт JSON<input id="importRules" type="file" accept="application/json,.json" hidden /></label>
+            <button class="control danger" id="resetRules" type="button">Сбросить</button>
+          </div>
+        </div>
+
+        <section class="panel rules-intro">
+          <div class="section-title">
+            <span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg></span>
+            <div><h2>Как трактуются правила</h2><p><b>demorgan</b> = <b>ajail</b>. Граница «до 60 / от 60» — это &lt; 60 и ≥ 60. Для «много мута» по умолчанию стоит 120 минут.</p></div>
+          </div>
+        </section>
+
+        <div class="rules-layout">
+          <section class="panel rule-group-panel">
+            <div class="panel-head"><div><h2>Суммирование demorgan</h2><p>Пороговые правила для нескольких ajail.</p></div></div>
+            <div id="demorganRules" class="rule-list"></div>
+          </section>
+
+          <section class="panel rule-group-panel">
+            <div class="panel-head"><div><h2>Комбинации наказаний</h2><p>Gunban, warn и demorgan в одной группе.</p></div></div>
+            <div id="combinationRules" class="rule-list"></div>
+          </section>
+
+          <section class="panel rule-group-panel">
+            <div class="panel-head"><div><h2>Накопительные наказания</h2><p>Суммирование ban / hardban и дополнительные дни.</p></div></div>
+            <div id="additiveRules" class="rule-list"></div>
+          </section>
+
+          <section class="panel rule-group-panel">
+            <div class="panel-head"><div><h2>Общие параметры</h2><p>Лимиты и значения, используемые несколькими правилами.</p></div></div>
+            <div id="globalSettings" class="settings-grid"></div>
+          </section>
+        </div>
+
+        <section class="panel custom-panel">
+          <div class="panel-head custom-head">
+            <div><h2>Пользовательские правила</h2><p>Свои комбинации применяются раньше встроенных.</p></div>
+            <button class="control primary" id="addCustomRule" type="button">+ Добавить правило</button>
+          </div>
+          <div id="customRules" class="custom-rule-list"></div>
+        </section>
+      </section>
     </main>
-    <script>
-        const punishStack = () => {
-            const field = document.getElementById('id_punishField').value;
-            const regex = /(?:(?:ID|PUNISH|TIME|NAME):[^;]+;){4,}/gm;
-            let m, result;
 
-            while ((m = regex.exec(field)) !== null) {
-                if (m.index === regex.lastIndex) {
-                    regex.lastIndex++;
-                }
-                
-                m.forEach((match, groupIndex) => {
-                    result += match;
-                });
-            }
+    <footer class="app-footer">
+      <span><span class="status-dot"></span>Настройки сохраняются локально</span>
+      <span>ADMIN PROSPEKT · Неофициальный веб-инструмент</span>
+      <span>GitHub Pages ready</span>
+    </footer>
+  </div>
 
-            let fieldArr = result.split(';');
-            let idArr = [];
-            let punishArr = [];
-            let timeArr = [];
-            let nameArr = [];
-            let resultArr = [];
-
-            for (let i = 0; i < fieldArr.length; i++) {
-                if (fieldArr[i].includes('ID:')) idArr.push(fieldArr[i]);
-                else if (fieldArr[i].includes('PUNISH:')) punishArr.push(fieldArr[i]);
-                else if (fieldArr[i].includes('TIME:')) timeArr.push(fieldArr[i]);
-                else nameArr.push(fieldArr[i]);
-            }
-
-            idArr = idArr.join('');
-            idArr = idArr.split(' ');
-            idArr = idArr.join('');
-            idArr = idArr.split('ID:');
-
-            punishArr = punishArr.join('');
-            punishArr = punishArr.split(' ');
-            punishArr = punishArr.join('');
-            punishArr = punishArr.split('PUNISH:');
-
-            timeArr = timeArr.join('');
-            timeArr = timeArr.split(' ');
-            timeArr = timeArr.join('');
-            timeArr = timeArr.split('TIME:');
-
-            nameArr = nameArr.join('');
-            nameArr = nameArr.split(' ');
-            nameArr = nameArr.join('');
-            nameArr = nameArr.split('NAME:');
-
-            for (let i = 1; i < idArr.length; i++) {
-                document.getElementById('id_dataTable').innerHTML += 
-                '<tr class="table__row">'+
-                    '<td class="table__id" id="id__table-id-'+i+'">'+idArr[i]+"</td>"+
-                    '<td class="table__punish" id="id_table-punish-'+i+'">'+punishArr[i]+"</td>"+
-                    '<td class="table__time" id="id_table-time-'+i+'">'+timeArr[i]+"</td>"+
-                    '<td class="table__name" id="id_table-name-'+i+'">'+nameArr[i]+"</td>"+
-                "</tr>"
-            }
-
-            for (let i = 1; i < idArr.length; i++) {
-                let p = i;
-                for (let c = ++p; c < idArr.length; c++) {
-                    if (idArr[i] == idArr[c] && punishArr[i] == punishArr[c]) {
-                        if (idArr[i] == undefined) continue;
-                        else {
-                            let time = Math.round(parseInt(timeArr[i])+parseInt(timeArr[c]));
-
-                            if (parseInt(timeArr[i])+parseInt(timeArr[c]) > 720) {
-                                time = 720;
-                            }
-
-                            resultArr.push("/"+punishArr[i]+" "+idArr[i]+" "+time+" Жалобы "+nameArr[i]+" + "+nameArr[c]);
-
-                            delete idArr[i];
-                            delete idArr[c];
-
-                            delete punishArr[i];
-                            delete punishArr[c];
-
-                            delete timeArr[i];
-                            delete timeArr[c];
-
-                            delete nameArr[i];
-                            delete nameArr[c];
-                        }
-
-                    }
-                    else continue;
-                }
-                if (idArr[i] == undefined) continue;
-                else resultArr.push("/"+punishArr[i]+" "+idArr[i]+" "+timeArr[i]+" Жалоба "+nameArr[i]);
-            }
-
-            for (let i = 0; i < resultArr.length; i++) {
-                document.getElementById('id_resultTable').innerHTML += '<tr class="table__row">'+resultArr[i]+"</tr>"
-            }
-        }
-    </script>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="script.js"></script>
+</body>
 </html>

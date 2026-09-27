@@ -1,33 +1,9 @@
 (() => {
   'use strict';
 
-  const DAY_WORD = 'дн.';
-  const PUNISHES = ['ajail', 'warn', 'ban', 'hardban', 'gunban', 'mute'];
-
-  const DEFAULT_CONFIG = {
-    globals: {
-      gunbanAjailSplit: 60,
-      demorganWarnThreshold: 140,
-      demorganBanThreshold: 180,
-      baseBanDays: 2,
-      demorganHighBanDays: 2,
-      muteExtraThreshold: 120,
-      muteExtraDays: 1,
-      ajailCap: 720,
-      muteCap: 720
-    },
-    builtin: [
-      { id:'gunban-ajail-low', enabled:true, title:'Gunban + demorgan до порога → warn', kind:'pairThreshold', a:'gunban', b:'ajail', metric:'sum', operator:'lt', thresholdKey:'gunbanAjailSplit', result:'warn', resultTime:null, priority:90 },
-      { id:'gunban-ajail-high', enabled:true, title:'Gunban + demorgan от порога → ban', kind:'pairThreshold', a:'gunban', b:'ajail', metric:'sum', operator:'gte', thresholdKey:'gunbanAjailSplit', result:'ban', resultTimeKey:'baseBanDays', priority:100 },
-      { id:'warn-ajail', enabled:true, title:'Warn + demorgan → ban', kind:'pair', a:'warn', b:'ajail', result:'ban', resultTimeKey:'baseBanDays', priority:80 },
-      { id:'ban-ajail', enabled:true, title:'Ban + demorgan → дополнительные дни', kind:'addPerCount', base:'ban', extra:'ajail', daysPer:1, priority:70 },
-      { id:'ban-gunban', enabled:true, title:'Ban + gunban → дополнительные дни', kind:'addPerCount', base:'ban', extra:'gunban', daysPer:1, priority:69 },
-      { id:'sum-bans', enabled:true, title:'Ban / hardban суммируются по дням', kind:'sumBanTypes', types:['ban','hardban'], priority:60 },
-      { id:'ajail-over-180', enabled:true, title:'2+ demorgan и сумма выше порога → ban', kind:'countAndSum', punish:'ajail', minCount:2, operator:'gt', thresholdKey:'demorganBanThreshold', result:'ban', resultTimeKey:'demorganHighBanDays', priority:85 },
-      { id:'ajail-over-140', enabled:true, title:'2+ demorgan и сумма выше порога → warn', kind:'countAndSum', punish:'ajail', minCount:2, operator:'gt', thresholdKey:'demorganWarnThreshold', result:'warn', resultTime:null, priority:75 },
-      { id:'ban-mute-extra', enabled:true, title:'При ban большой mute добавляет день', kind:'muteExtraOnBan', thresholdKey:'muteExtraThreshold', extraDaysKey:'muteExtraDays', priority:10 }
-    ]
-  };
+  const PUNISHES = ['ajail', 'warn', 'ban', 'hardban', 'gunban', 'mute', 'speedlimit'];
+  const TIMED_STACKABLE = ['ajail', 'ban', 'hardban', 'mute'];
+  const SINGLE_COMMAND = ['warn', 'gunban'];
 
   const demoData = String.raw`| ID:89057;PUNISH\:ajail;TIME:120;NAME:мира-0046; |
 | ID:89057;PUNISH\:ajail;TIME:120;NAME:Ангел-0085; |
@@ -36,10 +12,10 @@
 | ID:98542;PUNISH\:mute;TIME:20;NAME:Ангел-0098; |
 | ID:98542;PUNISH\:mute;TIME:110;NAME:Ангел-0098; |
 | ID:51074;PUNISH\:ban;TIME:2;NAME:мира-0047; |
-| ID:51074;PUNISH\:ajail;TIME:120;NAME:мира-0047; |`;
+| ID:51074;PUNISH\:ajail;TIME:120;NAME:мира-0047; |
+| ID:94465;PUNISH\:speedlimit;SPEED:60;TIME:120;NAME:мира-0077; |`;
 
   const $ = (sel) => document.querySelector(sel);
-  const config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   let lastOutput = [];
   let autoTimer = 0;
 
@@ -74,10 +50,27 @@
     return String(value || '').trim().replace(/^\//,'').toLowerCase().replace(/^demorgan$/,'ajail');
   }
 
+  function parseInteger(value){
+    const raw = String(value ?? '').trim();
+    if (!/^-?\d+$/.test(raw)) return null;
+    const n = Number(raw);
+    return Number.isSafeInteger(n) ? n : null;
+  }
+
+  function fieldsFromLine(line){
+    const normalized = String(line || '').replace(/\\:/g, ':');
+    const fields = {};
+    const fieldRe = /(?:^|[|;\s])(ID|PUNISH|SPEED|TIME|NAME)\s*:\s*([^;|]*)/gi;
+    let match;
+    while ((match = fieldRe.exec(normalized))) {
+      fields[match[1].toUpperCase()] = match[2].trim();
+    }
+    return fields;
+  }
+
   function parseInput(text, strict=false){
-    const cleaned = String(text || '').replace(/PUNISH\\:/gi, 'PUNISH:');
+    const cleaned = String(text || '');
     const lines = cleaned.split(/\r?\n/);
-    const recordRe = /ID\s*:\s*([^;|]+)\s*;\s*PUNISH\s*:\s*([^;|]+)\s*;\s*TIME\s*:\s*([^;|]*)\s*;\s*NAME\s*:\s*([^;|]+)\s*;?/i;
     const records = [];
     const errors = [];
     const invalidLines = [];
@@ -86,27 +79,45 @@
       const trimmed = line.trim();
       if (!trimmed || /^\|?\s*:?-{2,}/.test(trimmed) || /^\|?\s*-\s*\|?$/.test(trimmed)) return;
       if (!/ID\s*:/i.test(trimmed)) return;
-      const m = recordRe.exec(trimmed);
-      if (!m) { invalidLines.push(index + 1); return; }
 
-      const id = m[1].trim();
-      const punish = normalizePunish(m[2]);
-      const timeRaw = m[3].trim();
-      const name = m[4].trim();
-      const time = timeRaw === '' ? null : Number.parseInt(timeRaw, 10);
+      const fields = fieldsFromLine(trimmed);
+      const id = fields.ID || '';
+      const punish = normalizePunish(fields.PUNISH);
+      const name = fields.NAME || '';
 
-      if (!id || !punish || !name) { invalidLines.push(index + 1); return; }
+      if (!id || !punish || !name) {
+        invalidLines.push(index + 1);
+        return;
+      }
+
       if (!PUNISHES.includes(punish)) {
         if (strict) errors.push(`Строка ${index + 1}: неизвестное наказание «${punish}»`);
         else invalidLines.push(index + 1);
         return;
       }
-      if (punish !== 'warn' && (time === null || Number.isNaN(time))) {
+
+      if (punish === 'speedlimit') {
+        const speed = parseInteger(fields.SPEED);
+        const time = parseInteger(fields.TIME);
+        if (speed === null || speed <= 0) {
+          errors.push(`Строка ${index + 1}: нет корректного SPEED для speedlimit`);
+          return;
+        }
+        if (time === null || time <= 0) {
+          errors.push(`Строка ${index + 1}: нет корректного TIME для speedlimit`);
+          return;
+        }
+        records.push({ id, punish, speed, time, name, line:index + 1 });
+        return;
+      }
+
+      const time = fields.TIME === undefined || fields.TIME === '' ? null : parseInteger(fields.TIME);
+      if (!['warn', 'gunban'].includes(punish) && time === null) {
         errors.push(`Строка ${index + 1}: нет корректного TIME для ${punish}`);
         return;
       }
 
-      records.push({ id, punish, time: Number.isNaN(time) ? null : time, name, line:index + 1 });
+      records.push({ id, punish, speed:null, time, name, line:index + 1 });
     });
 
     if (!records.length && cleaned.trim() && !errors.length) {
@@ -127,146 +138,54 @@
     return [...map.values()];
   }
 
-  function summarize(group){
-    const stats = {};
-    for (const p of PUNISHES) stats[p] = { count:0, sum:0, records:[] };
-
-    for (const r of group.records) {
-      const s = stats[r.punish];
-      s.count++;
-      s.records.push(r);
-      s.sum += r.time || 0;
-    }
-
-    stats.ajail.sum = Math.min(stats.ajail.sum, Number(config.globals.ajailCap) || 720);
-    stats.mute.sum = Math.min(stats.mute.sum, Number(config.globals.muteCap) || 720);
-    return stats;
-  }
-
-  function compare(value, operator, threshold){
-    if (operator === 'lt') return value < threshold;
-    if (operator === 'lte') return value <= threshold;
-    if (operator === 'gte') return value >= threshold;
-    if (operator === 'gt') return value > threshold;
-    if (operator === 'eq') return value === threshold;
-    return false;
-  }
-
-  function makeResult(punish, time, reason, ruleId, changed=true){
-    return { punish, time, reason, ruleId, changed };
-  }
-
-  function dedupeOutputs(outputs){
-    const seen = new Set();
-    return outputs.filter(o => {
-      const key = `${o.punish}:${o.time ?? ''}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  function sumLabel(records, punish, total){
+    if (records.length <= 1) return 'Без изменений';
+    const parts = records.map(r => r.time ?? 0).join(' + ');
+    return `${records.length} записи ${punish} объединены: ${parts} = ${total}`;
   }
 
   function evaluateGroup(group){
-    const stats = summarize(group);
-    const globals = config.globals;
-    const rules = [...config.builtin].filter(r => r.enabled).sort((a,b) => (b.priority||0)-(a.priority||0));
-    const reasons = [];
-    let primary = null;
+    const outputs = [];
 
-    const hasExistingBan = Boolean(stats.ban.count || stats.hardban.count);
-
-    if (!hasExistingBan) {
-      for (const r of rules) {
-        if (r.kind === 'pairThreshold') {
-          if (!stats[r.a]?.count || !stats[r.b]?.count) continue;
-          const value = r.metric === 'count' ? stats[r.b].count : stats[r.b].sum;
-          if (compare(value, r.operator, Number(globals[r.thresholdKey]))) {
-            primary = makeResult(r.result, r.resultTimeKey ? Number(globals[r.resultTimeKey]) : r.resultTime, r.title, r.id);
-            break;
-          }
-        }
-
-        if (r.kind === 'pair' && stats[r.a]?.count && stats[r.b]?.count) {
-          primary = makeResult(r.result, r.resultTimeKey ? Number(globals[r.resultTimeKey]) : r.resultTime, r.title, r.id);
-          break;
-        }
-
-        if (r.kind === 'countAndSum') {
-          const s = stats[r.punish];
-          if (s?.count >= Number(r.minCount || 2) && compare(s.sum, r.operator, Number(globals[r.thresholdKey]))) {
-            primary = makeResult(r.result, r.resultTimeKey ? Number(globals[r.resultTimeKey]) : r.resultTime, r.title, r.id);
-            break;
-          }
-        }
-      }
+    for (const punish of TIMED_STACKABLE) {
+      const records = group.records.filter(r => r.punish === punish);
+      if (!records.length) continue;
+      const total = records.reduce((sum, r) => sum + (Number(r.time) || 0), 0);
+      outputs.push({
+        punish,
+        time: total,
+        speed: null,
+        changed: records.length > 1,
+        reason: sumLabel(records, punish, total),
+        sourceRecords: records
+      });
     }
 
-    let outputs = [];
-
-    if (primary) {
-      outputs.push(primary);
-    } else {
-      const banRule = rules.find(r => r.id === 'sum-bans');
-      const banTypes = ['ban','hardban'];
-      const banCount = banTypes.reduce((n,p)=>n+(stats[p]?.count||0),0);
-
-      if (banRule?.enabled && banCount) {
-        const total = banTypes.reduce((n,p)=>n+(stats[p]?.sum||0),0);
-        const strongest = stats.hardban.count ? 'hardban' : 'ban';
-        outputs.push(makeResult(
-          strongest,
-          total,
-          banCount > 1 ? banRule.title : `Базовое наказание ${strongest}`,
-          banCount > 1 ? banRule.id : 'base',
-          banCount > 1
-        ));
-      } else {
-        for (const p of banTypes) {
-          if (stats[p]?.count) {
-            outputs.push(makeResult(p, stats[p].sum, 'Базовое суммирование одинаковых наказаний', 'base', stats[p].count > 1));
-          }
-        }
-      }
-
-      if (stats.gunban.count) outputs.push(makeResult('gunban', null, 'Базовое наказание gunban', 'base', stats.gunban.count > 1));
-      if (stats.ajail.count) outputs.push(makeResult('ajail', stats.ajail.sum, 'Суммирование demorgan/ajail по ID', 'base', stats.ajail.count > 1));
-      if (stats.mute.count) outputs.push(makeResult('mute', stats.mute.sum, 'Суммирование mute по ID', 'base', stats.mute.count > 1));
-      if (stats.warn.count) outputs.push(makeResult('warn', null, stats.warn.count > 1 ? 'Несколько warn для одного ID' : 'Базовое наказание warn', 'base', stats.warn.count > 1));
+    for (const punish of SINGLE_COMMAND) {
+      const records = group.records.filter(r => r.punish === punish);
+      if (!records.length) continue;
+      outputs.push({
+        punish,
+        time: null,
+        speed: null,
+        changed: records.length > 1,
+        reason: records.length > 1 ? `${records.length} записи ${punish} объединены в одну команду` : 'Без изменений',
+        sourceRecords: records
+      });
     }
 
-    const ban = outputs.find(o => o.punish === 'ban');
-    const absorbed = new Set();
-
-    if (ban) {
-      for (const r of rules) {
-        if (r.kind === 'addPerCount' && stats[r.base]?.count && stats[r.extra]?.count) {
-          const add = stats[r.extra].count * Number(r.daysPer || 1);
-          ban.time = (Number(ban.time)||0) + add;
-          reasons.push(`${r.title}: +${add} ${DAY_WORD}`);
-          ban.changed = true;
-          absorbed.add(r.extra);
-        }
-      }
-
-      const muteRule = rules.find(r => r.kind === 'muteExtraOnBan');
-      if (muteRule && stats.mute.sum >= Number(globals[muteRule.thresholdKey])) {
-        const add = Number(globals[muteRule.extraDaysKey]) || 1;
-        ban.time = (Number(ban.time)||0) + add;
-        reasons.push(`${muteRule.title}: mute ${stats.mute.sum} мин. → +${add} ${DAY_WORD}`);
-        ban.changed = true;
-      }
-
-      absorbed.add('mute');
-      outputs = outputs.filter(o => o === ban || !absorbed.has(o.punish));
+    for (const record of group.records.filter(r => r.punish === 'speedlimit')) {
+      outputs.push({
+        punish: 'speedlimit',
+        speed: record.speed,
+        time: record.time,
+        changed: false,
+        reason: `Ограничение ${record.speed} км/ч на ${record.time} мин.`,
+        sourceRecords: [record]
+      });
     }
 
-    if (primary?.punish !== 'ban' && primary && stats.mute.count) {
-      outputs.push(makeResult('mute', stats.mute.sum, 'Mute не конфликтует с итоговым наказанием и оставлен отдельно', 'base', stats.mute.count > 1));
-    }
-
-    outputs = dedupeOutputs(outputs);
-    if (reasons.length && ban) ban.reason = `${ban.reason} · ${reasons.join(' · ')}`;
-    return { group, stats, outputs };
+    return { group, outputs };
   }
 
   function commandFor(item, group){
@@ -274,6 +193,7 @@
     const names = group.names.join(', ');
     if (item.punish === 'warn') return `/warn ${group.id} ${plural} ${names}`;
     if (item.punish === 'gunban') return `/gunban ${group.id} бесконечно ${plural} ${names}`;
+    if (item.punish === 'speedlimit') return `/speedlimit ${group.id} ${item.speed} ${item.time} ${plural} ${names}`;
     return `/${item.punish} ${group.id} ${item.time ?? ''} ${plural} ${names}`.replace(/\s+/g,' ').trim();
   }
 
@@ -298,11 +218,11 @@
 
     for (const e of evaluated) {
       for (const o of e.outputs) {
-        flat.push({ ...o, group:e.group, stats:e.stats, command:commandFor(o,e.group) });
+        flat.push({ ...o, group:e.group, command:commandFor(o,e.group) });
       }
     }
 
-    const order = {ban:0,hardban:1,gunban:2,warn:3,ajail:4,mute:5};
+    const order = {ban:0,hardban:1,gunban:2,warn:3,speedlimit:4,ajail:5,mute:6};
     flat.sort((a,b)=>(order[a.punish]??99)-(order[b.punish]??99) || (Number(b.time)||0)-(Number(a.time)||0));
 
     lastOutput = flat;
@@ -332,16 +252,20 @@
 
     root.className = 'results';
     root.innerHTML = items.map(item => {
-      const sources = item.group.records.map(r => `<li>стр. ${r.line}: ${escapeHtml(r.punish)}${r.time !== null ? ` · ${r.time}` : ''} · ${escapeHtml(r.name)}</li>`).join('');
+      const sources = item.sourceRecords.map(r => {
+        const speed = r.punish === 'speedlimit' ? ` · ${r.speed} км/ч` : '';
+        const time = r.time !== null ? ` · ${r.time}` : '';
+        return `<li>стр. ${r.line}: ${escapeHtml(r.punish)}${speed}${time} · ${escapeHtml(r.name)}</li>`;
+      }).join('');
       return `<details class="result-row">
         <summary>
           <span class="result-id">ID ${escapeHtml(item.group.id)}</span>
           <span class="result-command" title="${escapeHtml(item.command)}">${escapeHtml(item.command)}</span>
-          <span class="result-badges"><span class="badge">${escapeHtml(item.punish)}</span>${item.ruleId!=='base'?'<span class="badge rule">правило</span>':''}${item.changed?'<span class="badge changed">stack</span>':''}</span>
+          <span class="result-badges"><span class="badge">${escapeHtml(item.punish)}</span>${item.changed?'<span class="badge changed">stack</span>':''}</span>
         </summary>
         <div class="result-detail">
           <div class="detail-grid">
-            <div class="detail-block"><span>Применено</span><p>${escapeHtml(item.reason || 'Базовое суммирование')}</p></div>
+            <div class="detail-block"><span>Обработка</span><p>${escapeHtml(item.reason)}</p></div>
             <div class="detail-block"><span>Исходные записи</span><ul class="source-list">${sources}</ul></div>
           </div>
         </div>
@@ -349,10 +273,21 @@
     }).join('');
   }
 
+  function mergedCount(groups){
+    let total = 0;
+    for (const group of groups) {
+      for (const punish of [...TIMED_STACKABLE, ...SINGLE_COMMAND]) {
+        const count = group.records.filter(r => r.punish === punish).length;
+        total += Math.max(0, count - 1);
+      }
+    }
+    return total;
+  }
+
   function updateProcessStats(records, groups, commands){
     $('#statRecords').textContent = records.length;
     $('#statPlayers').textContent = groups.length;
-    $('#statMerged').textContent = groups.reduce((n,g)=>n + Math.max(0, g.records.length - 1), 0);
+    $('#statMerged').textContent = mergedCount(groups);
     $('#statCommands').textContent = commands.length;
   }
 

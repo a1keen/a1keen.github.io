@@ -13,7 +13,8 @@
 | ID:98542;PUNISH\:mute;TIME:110;NAME:Ангел-0098; |
 | ID:51074;PUNISH\:ban;TIME:2;NAME:мира-0047; |
 | ID:51074;PUNISH\:ajail;TIME:120;NAME:мира-0047; |
-| ID:94465;PUNISH\:speedlimit;SPEED:60;TIME:120;NAME:мира-0077; |`;
+| ID:94465;PUNISH\:speedlimit;SPEED:60;TIME:120;NAME:мира-0077; |
+| ID:94465;PUNISH\:speedlimit;SPEED:60;TIME:30;NAME:Ангел-0023; |`;
 
   const $ = (sel) => document.querySelector(sel);
   let lastOutput = [];
@@ -137,6 +138,15 @@
     return `${records.length} записи ${punish} объединены: ${parts} = ${total}`;
   }
 
+  function groupSpeedlimitsBySpeed(records) {
+    const map = new Map();
+    for (const record of records) {
+      if (!map.has(record.speed)) map.set(record.speed, []);
+      map.get(record.speed).push(record);
+    }
+    return [...map.entries()].map(([speed, groupedRecords]) => ({ speed, records: groupedRecords }));
+  }
+
   function evaluateGroup(group) {
     const outputs = [];
 
@@ -167,14 +177,20 @@
       });
     }
 
-    for (const record of group.records.filter((entry) => entry.punish === 'speedlimit')) {
+    const speedlimitRecords = group.records.filter((record) => record.punish === 'speedlimit');
+    for (const speedGroup of groupSpeedlimitsBySpeed(speedlimitRecords)) {
+      const total = speedGroup.records.reduce((sum, record) => sum + (Number(record.time) || 0), 0);
+      const changed = speedGroup.records.length > 1;
+      const parts = speedGroup.records.map((record) => record.time).join(' + ');
       outputs.push({
         punish: 'speedlimit',
-        speed: record.speed,
-        time: record.time,
-        changed: false,
-        reason: `Ограничение ${record.speed} км/ч на ${record.time} мин.`,
-        sourceRecords: [record]
+        speed: speedGroup.speed,
+        time: total,
+        changed,
+        reason: changed
+          ? `${speedGroup.records.length} speedlimit ${speedGroup.speed} км/ч объединены: ${parts} = ${total} мин.`
+          : `Ограничение ${speedGroup.speed} км/ч на ${total} мин.`,
+        sourceRecords: speedGroup.records
       });
     }
 
@@ -186,8 +202,6 @@
   }
 
   function commandFor(item, group) {
-    // NAME берём только из записей, которые формируют эту конкретную команду.
-    // Один Static ID может встречаться в ajail и speedlimit с разными жалобами.
     const names = namesForItem(item);
     const plural = names.length === 1 ? 'Жалоба' : 'Жалобы';
     const namesText = names.join(', ');
@@ -288,6 +302,11 @@
         const count = group.records.filter((record) => record.punish === punish).length;
         total += Math.max(0, count - 1);
       }
+
+      const speedlimitRecords = group.records.filter((record) => record.punish === 'speedlimit');
+      for (const speedGroup of groupSpeedlimitsBySpeed(speedlimitRecords)) {
+        total += Math.max(0, speedGroup.records.length - 1);
+      }
     }
     return total;
   }
@@ -342,7 +361,7 @@
       ok = false;
     }
 
-    toast(ok ? 'Скопировано' : 'Не удалось скопировать', !ok);
+    toast(ok ? 'Скопировано для выдачи' : 'Не удалось скопировать', !ok);
   }
 
   $('#input').addEventListener('input', scheduleAutoProcess);

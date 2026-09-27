@@ -6,7 +6,7 @@
   <meta name="description" content="Admin Prospekt Stacker — суммирование наказаний" />
   <meta name="theme-color" content="#0d0f11" />
   <title>ADMIN PROSPEKT · Stacker</title>
-  <link rel="stylesheet" href="styles.css?v=20260927-2" />
+  <link rel="stylesheet" href="styles.css?v=20260927-3" />
 </head>
 <body>
   <div class="site-shell">
@@ -22,8 +22,6 @@
           Стакер
         </button>
       </nav>
-
-      <div class="header-status" id="headerStatus"><span class="status-dot"></span>Готов</div>
     </header>
 
     <main>
@@ -31,9 +29,8 @@
         <div class="page-heading">
           <div>
             <h1>Суммирование наказаний</h1>
-            <p>Вставьте список наказаний. Стакер объединит одинаковые наказания по ID и сформирует готовые команды.</p>
+            <p>Вставьте список наказаний. Стакер автоматически объединит одинаковые наказания по ID и сформирует готовые команды.</p>
           </div>
-          <label class="check compact"><input type="checkbox" id="strictMode" />Строгая проверка</label>
         </div>
 
         <section class="panel quick-panel">
@@ -43,7 +40,7 @@
             </span>
             <div><h2>Быстрые действия</h2><p>Основные действия со списком наказаний</p></div>
           </div>
-          <div class="quick-actions">
+          <div class="quick-actions" style="grid-template-columns:repeat(3,1fr)">
             <button class="control" id="loadDemo" type="button">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8Z"/><path d="M14 3v5h5M8 12h8M8 16h6"/></svg>
               Вставить пример
@@ -51,10 +48,6 @@
             <button class="control" id="clearInput" type="button">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
               Очистить
-            </button>
-            <button class="control primary" id="processBtn" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 10-13h-8z"/></svg>
-              Обработать
             </button>
             <button class="control" id="copyResult" type="button" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
@@ -70,7 +63,7 @@
               <button class="text-button" id="copyInput" type="button">Копировать</button>
             </div>
             <textarea id="input" spellcheck="false" placeholder="ID:123;PUNISH:ajail;TIME:120;NAME:admin-0001;"></textarea>
-            <div class="panel-foot"><span id="inputStats">0 строк · 0 записей</span><span>Ctrl + Enter — обработать</span></div>
+            <div class="panel-foot"><span id="inputStats">0 строк · 0 записей</span></div>
           </section>
 
           <section class="panel workspace-panel result-panel">
@@ -106,6 +99,6 @@
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="script.js?v=20260927-2"></script>
+  <script src="script.js?v=20260927-3"></script>
 </body>
 </html>

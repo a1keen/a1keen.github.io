@@ -14,7 +14,8 @@
 | ID:51074;PUNISH\:ban;TIME:2;NAME:мира-0047; |
 | ID:51074;PUNISH\:ajail;TIME:120;NAME:мира-0047; |
 | ID:94465;PUNISH\:speedlimit;SPEED:60;TIME:120;NAME:мира-0077; |
-| ID:94465;PUNISH\:speedlimit;SPEED:60;TIME:30;NAME:Ангел-0023; |`;
+| ID:94465;PUNISH\:speedlimit;SPEED:60;TIME:30;NAME:Ангел-0023; |
+| ID:94465;PUNISH\:speedlimit;SPEED:80;TIME:45;NAME:кай-0055; |`;
 
   const $ = (sel) => document.querySelector(sel);
   let lastOutput = [];
@@ -147,6 +148,12 @@
     return [...map.entries()].map(([speed, groupedRecords]) => ({ speed, records: groupedRecords }));
   }
 
+  function speedConflictForGroup(group) {
+    const records = group.records.filter((record) => record.punish === 'speedlimit');
+    const speeds = [...new Set(records.map((record) => record.speed))].sort((a, b) => a - b);
+    return speeds.length > 1 ? { id: group.id, speeds } : null;
+  }
+
   function evaluateGroup(group) {
     const outputs = [];
 
@@ -159,6 +166,7 @@
         time: total,
         speed: null,
         changed: records.length > 1,
+        speedConflict: false,
         reason: sumLabel(records, punish, total),
         sourceRecords: records
       });
@@ -172,24 +180,36 @@
         time: null,
         speed: null,
         changed: records.length > 1,
+        speedConflict: false,
         reason: records.length > 1 ? `${records.length} записи ${punish} объединены в одну команду` : 'Без изменений',
         sourceRecords: records
       });
     }
 
     const speedlimitRecords = group.records.filter((record) => record.punish === 'speedlimit');
-    for (const speedGroup of groupSpeedlimitsBySpeed(speedlimitRecords)) {
+    const speedGroups = groupSpeedlimitsBySpeed(speedlimitRecords);
+    const conflictSpeeds = speedGroups.map((entry) => entry.speed).sort((a, b) => a - b);
+    const hasSpeedConflict = conflictSpeeds.length > 1;
+
+    for (const speedGroup of speedGroups) {
       const total = speedGroup.records.reduce((sum, record) => sum + (Number(record.time) || 0), 0);
       const changed = speedGroup.records.length > 1;
       const parts = speedGroup.records.map((record) => record.time).join(' + ');
+      const normalReason = changed
+        ? `${speedGroup.records.length} speedlimit ${speedGroup.speed} км/ч объединены: ${parts} = ${total} мин.`
+        : `Ограничение ${speedGroup.speed} км/ч на ${total} мин.`;
+      const conflictReason = hasSpeedConflict
+        ? ` Не объединено с остальными speedlimit этого Static ID: скорости различаются (${conflictSpeeds.join(', ')} км/ч).`
+        : '';
+
       outputs.push({
         punish: 'speedlimit',
         speed: speedGroup.speed,
         time: total,
         changed,
-        reason: changed
-          ? `${speedGroup.records.length} speedlimit ${speedGroup.speed} км/ч объединены: ${parts} = ${total} мин.`
-          : `Ограничение ${speedGroup.speed} км/ч на ${total} мин.`,
+        speedConflict: hasSpeedConflict,
+        conflictSpeeds,
+        reason: normalReason + conflictReason,
         sourceRecords: speedGroup.records
       });
     }
@@ -215,9 +235,9 @@
   function process() {
     const input = $('#input').value;
     const parsed = parseInput(input);
-    renderMessages(parsed);
 
     if (!parsed.records.length) {
+      renderMessages(parsed, []);
       lastOutput = [];
       renderResults([]);
       updateProcessStats(parsed.records, [], []);
@@ -227,6 +247,9 @@
     }
 
     const groups = groupById(parsed.records);
+    const conflicts = groups.map(speedConflictForGroup).filter(Boolean);
+    renderMessages(parsed, conflicts);
+
     const evaluated = groups.map(evaluateGroup);
     const flat = [];
 
@@ -246,11 +269,12 @@
     lastOutput = flat;
     renderResults(flat);
     updateProcessStats(parsed.records, groups, flat);
-    $('#resultSummary').textContent = `${parsed.records.length} записей → ${groups.length} ID → ${flat.length} команд`;
+    const conflictSuffix = conflicts.length ? ` · ⚠ разные скорости: ${conflicts.length} ID` : '';
+    $('#resultSummary').textContent = `${parsed.records.length} записей → ${groups.length} ID → ${flat.length} команд${conflictSuffix}`;
     $('#copyResult').disabled = !flat.length;
   }
 
-  function renderMessages(parsed) {
+  function renderMessages(parsed, speedConflicts = []) {
     const box = $('#messages');
     const chunks = [];
     if (parsed.errors.length) {
@@ -258,6 +282,12 @@
     }
     if (parsed.invalidLines.length) {
       chunks.push(`<div class="message warn">Не распознано строк: ${parsed.invalidLines.length} · ${parsed.invalidLines.slice(0, 12).join(', ')}${parsed.invalidLines.length > 12 ? '…' : ''}</div>`);
+    }
+    if (speedConflicts.length) {
+      const details = speedConflicts
+        .map((conflict) => `ID ${escapeHtml(conflict.id)}: ${conflict.speeds.map((speed) => `${speed} км/ч`).join(' / ')}`)
+        .join(' · ');
+      chunks.push(`<div class="message warn"><b>Speedlimit не удалось полностью стакнуть из-за разной скорости.</b><br>${details}</div>`);
     }
     box.innerHTML = chunks.join('');
   }
@@ -279,11 +309,11 @@
         return `<li>стр. ${record.line}: ${escapeHtml(record.punish)}${speed}${time} · ${escapeHtml(record.name)}</li>`;
       }).join('');
 
-      return `<details class="result-row">
+      return `<details class="result-row${item.speedConflict ? ' speed-conflict' : ''}">
         <summary>
           <span class="result-id">ID ${escapeHtml(item.group.id)}</span>
           <span class="result-command" title="${escapeHtml(item.command)}">${escapeHtml(item.command)}</span>
-          <span class="result-badges"><span class="badge">${escapeHtml(item.punish)}</span>${item.changed ? '<span class="badge changed">stack</span>' : ''}</span>
+          <span class="result-badges"><span class="badge">${escapeHtml(item.punish)}</span>${item.changed ? '<span class="badge changed">stack</span>' : ''}${item.speedConflict ? '<span class="badge conflict">разные скорости</span>' : ''}</span>
         </summary>
         <div class="result-detail">
           <div class="detail-grid">
@@ -370,7 +400,7 @@
     $('#input').value = '';
     lastOutput = [];
     updateInputStats();
-    renderMessages({ errors: [], invalidLines: [] });
+    renderMessages({ errors: [], invalidLines: [] }, []);
     renderResults([]);
     updateProcessStats([], [], []);
     $('#resultSummary').textContent = 'Команд пока нет';

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="Admin Prospekt Stacker — суммирование наказаний с настраиваемыми правилами" />
+  <meta name="description" content="Admin Prospekt Stacker — суммирование наказаний" />
   <meta name="theme-color" content="#0d0f11" />
   <title>ADMIN PROSPEKT · Stacker</title>
   <link rel="stylesheet" href="styles.css" />
@@ -20,10 +20,6 @@
         <button class="nav-item active" type="button" data-page="stacker" aria-current="page">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
           Стакер
-        </button>
-        <button class="nav-item" type="button" data-page="rules">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>
-          Правила
         </button>
       </nav>
 
@@ -100,61 +96,10 @@
           <div><span>Команд</span><strong id="statCommands">0</strong></div>
         </section>
       </section>
-
-      <section class="page" id="page-rules" data-page-panel="rules" hidden>
-        <div class="page-heading rules-heading">
-          <div>
-            <h1>Правила</h1>
-            <p>Меняйте стандартные условия или добавляйте свои. Настройки сохраняются только в этом браузере.</p>
-          </div>
-          <div class="row-actions">
-            <button class="control" id="exportRules" type="button">Экспорт JSON</button>
-            <label class="control file-control">Импорт JSON<input id="importRules" type="file" accept="application/json,.json" hidden /></label>
-            <button class="control danger" id="resetRules" type="button">Сбросить</button>
-          </div>
-        </div>
-
-        <section class="panel rules-intro">
-          <div class="section-title">
-            <span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg></span>
-            <div><h2>Как трактуются правила</h2><p><b>demorgan</b> = <b>ajail</b>. Граница «до 60 / от 60» — это &lt; 60 и ≥ 60. Для «много мута» по умолчанию стоит 120 минут.</p></div>
-          </div>
-        </section>
-
-        <div class="rules-layout">
-          <section class="panel rule-group-panel">
-            <div class="panel-head"><div><h2>Суммирование demorgan</h2><p>Пороговые правила для нескольких ajail.</p></div></div>
-            <div id="demorganRules" class="rule-list"></div>
-          </section>
-
-          <section class="panel rule-group-panel">
-            <div class="panel-head"><div><h2>Комбинации наказаний</h2><p>Gunban, warn и demorgan в одной группе.</p></div></div>
-            <div id="combinationRules" class="rule-list"></div>
-          </section>
-
-          <section class="panel rule-group-panel">
-            <div class="panel-head"><div><h2>Накопительные наказания</h2><p>Суммирование ban / hardban и дополнительные дни.</p></div></div>
-            <div id="additiveRules" class="rule-list"></div>
-          </section>
-
-          <section class="panel rule-group-panel">
-            <div class="panel-head"><div><h2>Общие параметры</h2><p>Лимиты и значения, используемые несколькими правилами.</p></div></div>
-            <div id="globalSettings" class="settings-grid"></div>
-          </section>
-        </div>
-
-        <section class="panel custom-panel">
-          <div class="panel-head custom-head">
-            <div><h2>Пользовательские правила</h2><p>Свои комбинации применяются раньше встроенных.</p></div>
-            <button class="control primary" id="addCustomRule" type="button">+ Добавить правило</button>
-          </div>
-          <div id="customRules" class="custom-rule-list"></div>
-        </section>
-      </section>
     </main>
 
     <footer class="app-footer">
-      <span><span class="status-dot"></span>Настройки сохраняются локально</span>
+      <span><span class="status-dot"></span>Работает локально</span>
       <span>ADMIN PROSPEKT · Неофициальный веб-инструмент</span>
       <span>GitHub Pages ready</span>
     </footer>

@@ -19,17 +19,13 @@
   let lastOutput = [];
   let autoTimer = 0;
 
-  function escapeHtml(s){
-    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
   }
 
-  function setHeaderStatus(text, busy=false){
-    const el = $('#headerStatus');
-    el.classList.toggle('busy', busy);
-    el.innerHTML = `<span class="status-dot"></span>${escapeHtml(text)}`;
-  }
-
-  function toast(text, error=false){
+  function toast(text, error = false) {
     const el = $('#toast');
     el.textContent = text;
     el.style.display = 'block';
@@ -46,18 +42,18 @@
     toast.timer = setTimeout(() => { el.style.display = 'none'; }, 1800);
   }
 
-  function normalizePunish(value){
-    return String(value || '').trim().replace(/^\//,'').toLowerCase().replace(/^demorgan$/,'ajail');
+  function normalizePunish(value) {
+    return String(value || '').trim().replace(/^\//, '').toLowerCase().replace(/^demorgan$/, 'ajail');
   }
 
-  function parseInteger(value){
+  function parseInteger(value) {
     const raw = String(value ?? '').trim();
     if (!/^-?\d+$/.test(raw)) return null;
-    const n = Number(raw);
-    return Number.isSafeInteger(n) ? n : null;
+    const number = Number(raw);
+    return Number.isSafeInteger(number) ? number : null;
   }
 
-  function fieldsFromLine(line){
+  function fieldsFromLine(line) {
     const normalized = String(line || '').replace(/\\:/g, ':');
     const fields = {};
     const fieldRe = /(?:^|[|;\s])(ID|PUNISH|SPEED|TIME|NAME)\s*:\s*([^;|]*)/gi;
@@ -68,7 +64,7 @@
     return fields;
   }
 
-  function parseInput(text, strict=false){
+  function parseInput(text) {
     const cleaned = String(text || '');
     const lines = cleaned.split(/\r?\n/);
     const records = [];
@@ -91,8 +87,7 @@
       }
 
       if (!PUNISHES.includes(punish)) {
-        if (strict) errors.push(`Строка ${index + 1}: неизвестное наказание «${punish}»`);
-        else invalidLines.push(index + 1);
+        invalidLines.push(index + 1);
         return;
       }
 
@@ -107,7 +102,7 @@
           errors.push(`Строка ${index + 1}: нет корректного TIME для speedlimit`);
           return;
         }
-        records.push({ id, punish, speed, time, name, line:index + 1 });
+        records.push({ id, punish, speed, time, name, line: index + 1 });
         return;
       }
 
@@ -117,7 +112,7 @@
         return;
       }
 
-      records.push({ id, punish, speed:null, time, name, line:index + 1 });
+      records.push({ id, punish, speed: null, time, name, line: index + 1 });
     });
 
     if (!records.length && cleaned.trim() && !errors.length) {
@@ -127,30 +122,28 @@
     return { records, errors, invalidLines, lineCount: cleaned.trim() ? lines.length : 0 };
   }
 
-  function groupById(records){
+  function groupById(records) {
     const map = new Map();
-    for (const r of records) {
-      if (!map.has(r.id)) map.set(r.id, { id:r.id, records:[], names:[] });
-      const group = map.get(r.id);
-      group.records.push(r);
-      if (!group.names.includes(r.name)) group.names.push(r.name);
+    for (const record of records) {
+      if (!map.has(record.id)) map.set(record.id, { id: record.id, records: [] });
+      map.get(record.id).records.push(record);
     }
     return [...map.values()];
   }
 
-  function sumLabel(records, punish, total){
+  function sumLabel(records, punish, total) {
     if (records.length <= 1) return 'Без изменений';
-    const parts = records.map(r => r.time ?? 0).join(' + ');
+    const parts = records.map((record) => record.time ?? 0).join(' + ');
     return `${records.length} записи ${punish} объединены: ${parts} = ${total}`;
   }
 
-  function evaluateGroup(group){
+  function evaluateGroup(group) {
     const outputs = [];
 
     for (const punish of TIMED_STACKABLE) {
-      const records = group.records.filter(r => r.punish === punish);
+      const records = group.records.filter((record) => record.punish === punish);
       if (!records.length) continue;
-      const total = records.reduce((sum, r) => sum + (Number(r.time) || 0), 0);
+      const total = records.reduce((sum, record) => sum + (Number(record.time) || 0), 0);
       outputs.push({
         punish,
         time: total,
@@ -162,7 +155,7 @@
     }
 
     for (const punish of SINGLE_COMMAND) {
-      const records = group.records.filter(r => r.punish === punish);
+      const records = group.records.filter((record) => record.punish === punish);
       if (!records.length) continue;
       outputs.push({
         punish,
@@ -174,7 +167,7 @@
       });
     }
 
-    for (const record of group.records.filter(r => r.punish === 'speedlimit')) {
+    for (const record of group.records.filter((entry) => entry.punish === 'speedlimit')) {
       outputs.push({
         punish: 'speedlimit',
         speed: record.speed,
@@ -188,18 +181,26 @@
     return { group, outputs };
   }
 
-  function commandFor(item, group){
-    const plural = group.names.length === 1 ? 'Жалоба' : 'Жалобы';
-    const names = group.names.join(', ');
-    if (item.punish === 'warn') return `/warn ${group.id} ${plural} ${names}`;
-    if (item.punish === 'gunban') return `/gunban ${group.id} бесконечно ${plural} ${names}`;
-    if (item.punish === 'speedlimit') return `/speedlimit ${group.id} ${item.speed} ${item.time} ${plural} ${names}`;
-    return `/${item.punish} ${group.id} ${item.time ?? ''} ${plural} ${names}`.replace(/\s+/g,' ').trim();
+  function namesForItem(item) {
+    return [...new Set(item.sourceRecords.map((record) => record.name).filter(Boolean))];
   }
 
-  function process({silent=false}={}){
+  function commandFor(item, group) {
+    // NAME берём только из записей, которые формируют эту конкретную команду.
+    // Один Static ID может встречаться в ajail и speedlimit с разными жалобами.
+    const names = namesForItem(item);
+    const plural = names.length === 1 ? 'Жалоба' : 'Жалобы';
+    const namesText = names.join(', ');
+
+    if (item.punish === 'warn') return `/warn ${group.id} ${plural} ${namesText}`;
+    if (item.punish === 'gunban') return `/gunban ${group.id} бесконечно ${plural} ${namesText}`;
+    if (item.punish === 'speedlimit') return `/speedlimit ${group.id} ${item.speed} ${item.time} ${plural} ${namesText}`;
+    return `/${item.punish} ${group.id} ${item.time ?? ''} ${plural} ${namesText}`.replace(/\s+/g, ' ').trim();
+  }
+
+  function process() {
     const input = $('#input').value;
-    const parsed = parseInput(input, $('#strictMode').checked);
+    const parsed = parseInput(input);
     renderMessages(parsed);
 
     if (!parsed.records.length) {
@@ -208,7 +209,6 @@
       updateProcessStats(parsed.records, [], []);
       $('#resultSummary').textContent = input.trim() ? 'Не удалось сформировать команды' : 'Команд пока нет';
       $('#copyResult').disabled = true;
-      if (!silent) setHeaderStatus('Готов');
       return;
     }
 
@@ -216,32 +216,39 @@
     const evaluated = groups.map(evaluateGroup);
     const flat = [];
 
-    for (const e of evaluated) {
-      for (const o of e.outputs) {
-        flat.push({ ...o, group:e.group, command:commandFor(o,e.group) });
+    for (const evaluatedGroup of evaluated) {
+      for (const output of evaluatedGroup.outputs) {
+        flat.push({
+          ...output,
+          group: evaluatedGroup.group,
+          command: commandFor(output, evaluatedGroup.group)
+        });
       }
     }
 
-    const order = {ban:0,hardban:1,gunban:2,warn:3,speedlimit:4,ajail:5,mute:6};
-    flat.sort((a,b)=>(order[a.punish]??99)-(order[b.punish]??99) || (Number(b.time)||0)-(Number(a.time)||0));
+    const order = { ban: 0, hardban: 1, gunban: 2, warn: 3, speedlimit: 4, ajail: 5, mute: 6 };
+    flat.sort((a, b) => (order[a.punish] ?? 99) - (order[b.punish] ?? 99) || (Number(b.time) || 0) - (Number(a.time) || 0));
 
     lastOutput = flat;
     renderResults(flat);
     updateProcessStats(parsed.records, groups, flat);
     $('#resultSummary').textContent = `${parsed.records.length} записей → ${groups.length} ID → ${flat.length} команд`;
     $('#copyResult').disabled = !flat.length;
-    if (!silent) setHeaderStatus('Готов');
   }
 
-  function renderMessages(parsed){
+  function renderMessages(parsed) {
     const box = $('#messages');
     const chunks = [];
-    if (parsed.errors.length) chunks.push(`<div class="message error">${parsed.errors.map(escapeHtml).join('<br>')}</div>`);
-    if (parsed.invalidLines.length) chunks.push(`<div class="message warn">Не распознано строк: ${parsed.invalidLines.length} · ${parsed.invalidLines.slice(0,12).join(', ')}${parsed.invalidLines.length>12?'…':''}</div>`);
+    if (parsed.errors.length) {
+      chunks.push(`<div class="message error">${parsed.errors.map(escapeHtml).join('<br>')}</div>`);
+    }
+    if (parsed.invalidLines.length) {
+      chunks.push(`<div class="message warn">Не распознано строк: ${parsed.invalidLines.length} · ${parsed.invalidLines.slice(0, 12).join(', ')}${parsed.invalidLines.length > 12 ? '…' : ''}</div>`);
+    }
     box.innerHTML = chunks.join('');
   }
 
-  function renderResults(items){
+  function renderResults(items) {
     const root = $('#results');
 
     if (!items.length) {
@@ -251,17 +258,18 @@
     }
 
     root.className = 'results';
-    root.innerHTML = items.map(item => {
-      const sources = item.sourceRecords.map(r => {
-        const speed = r.punish === 'speedlimit' ? ` · ${r.speed} км/ч` : '';
-        const time = r.time !== null ? ` · ${r.time}` : '';
-        return `<li>стр. ${r.line}: ${escapeHtml(r.punish)}${speed}${time} · ${escapeHtml(r.name)}</li>`;
+    root.innerHTML = items.map((item) => {
+      const sources = item.sourceRecords.map((record) => {
+        const speed = record.punish === 'speedlimit' ? ` · ${record.speed} км/ч` : '';
+        const time = record.time !== null ? ` · ${record.time}` : '';
+        return `<li>стр. ${record.line}: ${escapeHtml(record.punish)}${speed}${time} · ${escapeHtml(record.name)}</li>`;
       }).join('');
+
       return `<details class="result-row">
         <summary>
           <span class="result-id">ID ${escapeHtml(item.group.id)}</span>
           <span class="result-command" title="${escapeHtml(item.command)}">${escapeHtml(item.command)}</span>
-          <span class="result-badges"><span class="badge">${escapeHtml(item.punish)}</span>${item.changed?'<span class="badge changed">stack</span>':''}</span>
+          <span class="result-badges"><span class="badge">${escapeHtml(item.punish)}</span>${item.changed ? '<span class="badge changed">stack</span>' : ''}</span>
         </summary>
         <div class="result-detail">
           <div class="detail-grid">
@@ -273,47 +281,46 @@
     }).join('');
   }
 
-  function mergedCount(groups){
+  function mergedCount(groups) {
     let total = 0;
     for (const group of groups) {
       for (const punish of [...TIMED_STACKABLE, ...SINGLE_COMMAND]) {
-        const count = group.records.filter(r => r.punish === punish).length;
+        const count = group.records.filter((record) => record.punish === punish).length;
         total += Math.max(0, count - 1);
       }
     }
     return total;
   }
 
-  function updateProcessStats(records, groups, commands){
+  function updateProcessStats(records, groups, commands) {
     $('#statRecords').textContent = records.length;
     $('#statPlayers').textContent = groups.length;
     $('#statMerged').textContent = mergedCount(groups);
     $('#statCommands').textContent = commands.length;
   }
 
-  function updateInputStats(){
+  function updateInputStats() {
     const text = $('#input').value;
-    const parsed = parseInput(text, false);
+    const parsed = parseInput(text);
     $('#inputStats').textContent = `${parsed.lineCount} строк · ${parsed.records.length} записей`;
   }
 
-  function scheduleAutoProcess(){
+  function scheduleAutoProcess() {
     clearTimeout(autoTimer);
     updateInputStats();
+
     const indicator = $('#autoIndicator');
     indicator.classList.add('busy');
     indicator.innerHTML = '<span class="status-dot"></span>Ожидание';
-    setHeaderStatus('Обработка…', true);
 
     autoTimer = setTimeout(() => {
-      process({silent:true});
+      process();
       indicator.classList.remove('busy');
       indicator.innerHTML = '<span class="status-dot"></span>Авто';
-      setHeaderStatus('Готов');
     }, 280);
   }
 
-  async function copyText(text){
+  async function copyText(text) {
     if (!text) return;
     let ok = false;
 
@@ -322,14 +329,14 @@
         await navigator.clipboard.writeText(text);
         ok = true;
       } else {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
         ok = document.execCommand('copy');
-        ta.remove();
+        textarea.remove();
       }
     } catch {
       ok = false;
@@ -338,35 +345,23 @@
     toast(ok ? 'Скопировано' : 'Не удалось скопировать', !ok);
   }
 
-  $('#processBtn').addEventListener('click', () => {
-    setHeaderStatus('Обработка…', true);
-    process();
-  });
-
   $('#input').addEventListener('input', scheduleAutoProcess);
-  $('#input').addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      process();
-    }
-  });
-
-  $('#strictMode').addEventListener('change', () => process({silent:true}));
 
   $('#clearInput').addEventListener('click', () => {
     $('#input').value = '';
     lastOutput = [];
     updateInputStats();
-    renderMessages({errors:[],invalidLines:[]});
+    renderMessages({ errors: [], invalidLines: [] });
     renderResults([]);
-    updateProcessStats([],[],[]);
+    updateProcessStats([], [], []);
     $('#resultSummary').textContent = 'Команд пока нет';
     $('#copyResult').disabled = true;
     toast('Поле очищено');
   });
 
   $('#copyInput').addEventListener('click', () => copyText($('#input').value));
-  $('#copyResult').addEventListener('click', () => copyText(lastOutput.map(x=>x.command).join('\n')));
+  $('#copyResult').addEventListener('click', () => copyText(lastOutput.map((item) => item.command).join('\n')));
+
   $('#loadDemo').addEventListener('click', () => {
     $('#input').value = demoData;
     updateInputStats();
@@ -375,6 +370,6 @@
   });
 
   updateInputStats();
-  updateProcessStats([],[],[]);
+  updateProcessStats([], [], []);
   history.replaceState(null, '', '#stacker');
 })();

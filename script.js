@@ -220,14 +220,18 @@
           banCount > 1 ? banRule.id : 'base',
           banCount > 1
         ));
+      } else {
+        for (const p of banTypes) {
+          if (stats[p]?.count) {
+            outputs.push(makeResult(p, stats[p].sum, 'Базовое суммирование одинаковых наказаний', 'base', stats[p].count > 1));
+          }
+        }
       }
 
-      if (!banCount) {
-        if (stats.gunban.count) outputs.push(makeResult('gunban', null, 'Базовое наказание gunban', 'base', stats.gunban.count > 1));
-        if (stats.ajail.count) outputs.push(makeResult('ajail', stats.ajail.sum, 'Суммирование demorgan/ajail по ID', 'base', stats.ajail.count > 1));
-        if (stats.mute.count) outputs.push(makeResult('mute', stats.mute.sum, 'Суммирование mute по ID', 'base', stats.mute.count > 1));
-        if (stats.warn.count) outputs.push(makeResult('warn', null, stats.warn.count > 1 ? 'Несколько warn для одного ID' : 'Базовое наказание warn', 'base', stats.warn.count > 1));
-      }
+      if (stats.gunban.count) outputs.push(makeResult('gunban', null, 'Базовое наказание gunban', 'base', stats.gunban.count > 1));
+      if (stats.ajail.count) outputs.push(makeResult('ajail', stats.ajail.sum, 'Суммирование demorgan/ajail по ID', 'base', stats.ajail.count > 1));
+      if (stats.mute.count) outputs.push(makeResult('mute', stats.mute.sum, 'Суммирование mute по ID', 'base', stats.mute.count > 1));
+      if (stats.warn.count) outputs.push(makeResult('warn', null, stats.warn.count > 1 ? 'Несколько warn для одного ID' : 'Базовое наказание warn', 'base', stats.warn.count > 1));
     }
 
     const ban = outputs.find(o => o.punish === 'ban');
